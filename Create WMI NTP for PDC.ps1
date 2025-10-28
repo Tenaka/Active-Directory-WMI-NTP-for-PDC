@@ -7,32 +7,31 @@ Requirements:
  - Run this on the PDC
  - Run as a Domain Admin
  - ActiveDirectory + GroupPolicy modules
- - No existence checks (per request)
 #>
 
-Import-Module ActiveDirectory -ErrorAction Stop
-Import-Module GroupPolicy    -ErrorAction Stop
+#path to NTP GPO settings to import
+$gpoNTPPath = "C:\ADBackups\PDCNTP"
 
-# Parameters
+#Parameters
 $FilterName  = "PDC Role Filter"
 $Description = "Targets DC holding the PDC Emulator role (DomainRole = 5)"
 $Query       = "Select * from Win32_ComputerSystem where DomainRole = 5"
 $GPOName     = "NTP Settings for PDC"
 
-# Resolve domain info
+#Resolve domain info
 $domain      = Get-ADDomain
 $domainDNS   = $domain.DNSRoot
 $namingContext = $domain.DistinguishedName
 $dc          = (Get-ADDomainController -Discover).HostName[0]
 
-# Build msWMI-Parm2 value
+#Build msWMI-Parm2 value
 $filterString = "1;3;10;{0};WQL;root\CIMv2;{1};" -f $Query.Length, $Query
 
-# Create identifiers
+#Create identifiers
 $wmiGuid = ([guid]::NewGuid()).ToString("B").ToUpper()
 $timestamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddHHmmss.ffffff-000")
 
-# Prepare attributes
+#Prepare attributes
 $attributes = @{
     "showInAdvancedViewOnly" = "TRUE"
     "msWMI-Name"             = $FilterName
@@ -45,21 +44,21 @@ $attributes = @{
     "msWMI-CreationDate"     = $timestamp
 }
 
-# Create the WMI filter AD object
+#Create the WMI filter AD object
 $wmiPath = "CN=SOM,CN=WMIPolicy,CN=System,$namingContext"
 Write-Host "Creating WMI filter '$FilterName'..."
 New-ADObject -Name $wmiGuid -Type "msWMI-Som" -Path $wmiPath -OtherAttributes $attributes -ErrorAction Stop
 Write-Host "WMI filter created with ID $wmiGuid"
 
-# Create a GPO
+#Create a GPO
 Write-Host "Creating GPO '$GPOName'..."
 $gpo = New-GPO -Name $GPOName -Comment "Applies only to PDC Emulator"
 
 
-# Find GPO AD object
+#Find GPO AD object
 $gpoObj = Get-ADObject -LDAPFilter "(&(objectClass=groupPolicyContainer)(cn={$($gpo.Id)}))" -ErrorAction Stop
 
-# Link WMI filter to the GPO
+#Link WMI filter to the GPO
 $filterStringForGPO = "[{0};{{{1}}};0]" -f $domainDNS, ($wmiGuid.Trim("{}").ToUpper())
 Write-Host "Linking WMI filter to GPO..."
 Set-ADObject -Identity $gpoObj.DistinguishedName -Replace @{ gPCWQLFilter = $filterStringForGPO } -ErrorAction Stop
@@ -67,6 +66,6 @@ Set-ADObject -Identity $gpoObj.DistinguishedName -Replace @{ gPCWQLFilter = $fil
 Write-Host "Done. WMI filter '$FilterName' created and linked to GPO '$GPOName'." -ForegroundColor Green
 
 $gpoID = (get-gpo -Name $GPOName).id 
-Import-GPO -Path "C:\ADBackups\PDCNTP" -TargetGuid 7ecb42df-2e71-44c6-90f1-bb3d95fefa7a -BackupId A5214940-95CC-4E93-837D-5D64CA58935C
+Import-GPO -Path $gpoNTPPath -TargetGuid 7ecb42df-2e71-44c6-90f1-bb3d95fefa7a -BackupId A5214940-95CC-4E93-837D-5D64CA58935C
 
 
