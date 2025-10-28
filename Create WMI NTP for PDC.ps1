@@ -1,8 +1,10 @@
-﻿<#
+<#
 Creates a WMI filter that targets the PDC Emulator (DomainRole = 5),
 creates a GPO and assigns the WMI filter to that GPO.
+Imports settings for PDC to time source and recommended settings to prevent time jumping more than 1 hour
 
 Requirements:
+ - Run this on the PDC
  - Run as a Domain Admin
  - ActiveDirectory + GroupPolicy modules
  - No existence checks (per request)
@@ -53,6 +55,7 @@ Write-Host "WMI filter created with ID $wmiGuid"
 Write-Host "Creating GPO '$GPOName'..."
 $gpo = New-GPO -Name $GPOName -Comment "Applies only to PDC Emulator"
 
+
 # Find GPO AD object
 $gpoObj = Get-ADObject -LDAPFilter "(&(objectClass=groupPolicyContainer)(cn={$($gpo.Id)}))" -ErrorAction Stop
 
@@ -62,3 +65,8 @@ Write-Host "Linking WMI filter to GPO..."
 Set-ADObject -Identity $gpoObj.DistinguishedName -Replace @{ gPCWQLFilter = $filterStringForGPO } -ErrorAction Stop
 
 Write-Host "Done. WMI filter '$FilterName' created and linked to GPO '$GPOName'." -ForegroundColor Green
+
+$gpoID = (get-gpo -Name $GPOName).id 
+Import-GPO -Path "C:\ADBackups\PDCNTP" -TargetGuid 7ecb42df-2e71-44c6-90f1-bb3d95fefa7a -BackupId A5214940-95CC-4E93-837D-5D64CA58935C
+
+
