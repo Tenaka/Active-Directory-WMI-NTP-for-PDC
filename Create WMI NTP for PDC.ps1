@@ -21,8 +21,10 @@ $GPOName     = "NTP Settings for PDC"
 #Resolve domain info
 $domain      = Get-ADDomain
 $domainDNS   = $domain.DNSRoot
-$namingContext = $domain.DistinguishedName
-$dc          = (Get-ADDomainController -Discover).HostName[0]
+$rootDSE = $domain.DistinguishedName
+$dcDN = "OU=Domain Controllers,$rootDSE"
+$dc = (Get-ADDomainController -Discover).HostName[0]
+
 
 #Build msWMI-Parm2 value
 $filterString = "1;3;10;{0};WQL;root\CIMv2;{1};" -f $Query.Length, $Query
@@ -45,7 +47,7 @@ $attributes = @{
 }
 
 #Create the WMI filter AD object
-$wmiPath = "CN=SOM,CN=WMIPolicy,CN=System,$namingContext"
+$wmiPath = "CN=SOM,CN=WMIPolicy,CN=System,$rootDSE"
 Write-Host "Creating WMI filter '$FilterName'..."
 New-ADObject -Name $wmiGuid -Type "msWMI-Som" -Path $wmiPath -OtherAttributes $attributes -ErrorAction Stop
 Write-Host "WMI filter created with ID $wmiGuid"
@@ -64,8 +66,18 @@ Write-Host "Linking WMI filter to GPO..."
 Set-ADObject -Identity $gpoObj.DistinguishedName -Replace @{ gPCWQLFilter = $filterStringForGPO } -ErrorAction Stop
 
 Write-Host "Done. WMI filter '$FilterName' created and linked to GPO '$GPOName'." -ForegroundColor Green
-
-$gpoID = (get-gpo -Name $GPOName).id 
-Import-GPO -Path $gpoNTPPath -TargetGuid 7ecb42df-2e71-44c6-90f1-bb3d95fefa7a -BackupId A5214940-95CC-4E93-837D-5D64CA58935C
-
+       
+$gtGPOs = Get-ChildItem $gpoNTPPath
+    foreach ($guid in $gtGPOs)
+        {
+        $gtGPOContent = (get-content "$($gpoNTPPath)\$($guid)\gpreport.xml" | Select-String "<Name>")[0]
+        $targetName = $gtGPOContent.ToString().replace("<Name>","").replace("</Name>","").Replace("  ","")
+        $backupID = $guid.name.replace("{","").replace("}","")
+        $gtGPOExist = Get-GPO -Name $targetName -ErrorAction SilentlyContinue
+                           
+        if ($gtGPOExist -eq $null)
+            {
+                Import-GPO -Path $gpoNTPPath -BackupId $backupID -TargetName $targetName -CreateIfNeeded | New-GPLink -Target $dcDN -LinkEnabled Yes -Order 1
+            }  
+        }
 
