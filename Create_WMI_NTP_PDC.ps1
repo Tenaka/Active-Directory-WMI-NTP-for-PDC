@@ -70,13 +70,11 @@ Write-Host "Done. WMI filter '$FilterName' created and linked to GPO '$GPOName'.
 $gtGPOs = Get-ChildItem $gpoNTPPath -Directory
     foreach ($guid in $gtGPOs)
         {
-        $gtGPOContent = (get-content "$($gpoNTPPath)\$($guid)\gpreport.xml" | Select-String "<Name>")[0]
-        $targetName = $gtGPOContent.ToString().replace("<Name>","").replace("</Name>","").Replace("  ","")
-        $backupID = $guid.name.replace("{","").replace("}","")
-        $gtGPOExist = Get-GPO -Name $targetName -ErrorAction SilentlyContinue
-                           
-        if ($gtGPOExist -eq $null)
-            {
-                Import-GPO -Path $gpoNTPPath -BackupId $backupID -TargetName $targetName -CreateIfNeeded | New-GPLink -Target $dcDN -LinkEnabled Yes -Order 1
-            }  
-        }
+            $gtGPOContent = (get-content "$($gpoNTPPath)\$($guid)\gpreport.xml" | Select-String "<Name>")[0]
+            $targetName = $gtGPOContent.ToString().replace("<Name>","").replace("</Name>","").Replace("  ","")
+            $backupID = $guid.name.replace("{","").replace("}","")
+            $gtGPOExist = Get-GPO -Name $targetName -ErrorAction SilentlyContinue                           
+
+            Import-GPO -Path $gpoNTPPath -BackupId $backupID -TargetName $targetName -CreateIfNeeded | New-GPLink -Target $dcDN -LinkEnabled Yes -Order 1
+        }  
+ 
