@@ -67,7 +67,7 @@ Set-ADObject -Identity $gpoObj.DistinguishedName -Replace @{ gPCWQLFilter = $fil
 
 Write-Host "Done. WMI filter '$FilterName' created and linked to GPO '$GPOName'." -ForegroundColor Green
        
-$gtGPOs = Get-ChildItem $gpoNTPPath
+$gtGPOs = Get-ChildItem $gpoNTPPath -Directory
     foreach ($guid in $gtGPOs)
         {
         $gtGPOContent = (get-content "$($gpoNTPPath)\$($guid)\gpreport.xml" | Select-String "<Name>")[0]
@@ -80,4 +80,3 @@ $gtGPOs = Get-ChildItem $gpoNTPPath
                 Import-GPO -Path $gpoNTPPath -BackupId $backupID -TargetName $targetName -CreateIfNeeded | New-GPLink -Target $dcDN -LinkEnabled Yes -Order 1
             }  
         }
-
